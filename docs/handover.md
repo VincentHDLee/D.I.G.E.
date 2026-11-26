@@ -9,7 +9,7 @@
 | 项 | 值 |
 | --- | --- |
 | 上游仓库 | `https://github.com/djkcyl/D.I.G.E.`（基线 `2b454a5`，游戏 1.5 之前的口径） |
-| 本仓库 | `https://github.com/VincentHDLee/D.I.G.E.` |
+| 本项目 | `https://github.com/VincentHDLee/D.I.G.E.` |
 | `package.json` | `dige@1.12.0` |
 | 演示站 | Cloudflare Pages 静态部署，构建命令 `pnpm build`，产物 `dist` |
 
@@ -30,7 +30,7 @@
 | 电网码 | `FUEL_TO_CODE` 增加 `wulingHigh: "WH"` |
 | 图标 | `public/fuels/wulingHigh.webp`（由社区提供的 256×256 官方素材缩到 64×64） |
 | 移除 | 早期研究用的「分流工作台」（`components/splitter/`、`utils/splitter/`、`Sidebar/` 入口、54 个 `splitter*` i18n key） |
-| 品牌 | GitHub 链接全量指向 fork；公告 8 语言插入"社区维护版"说明；README 重写并对比上游；新增 `docs/architecture.md` |
+| 站点配置 | GitHub / Issues / 群 / 教程 / 域名集中到 `src/config/site.ts`；README 重写为功能说明；新增 `docs/architecture.md` |
 | 站点 | `CANONICAL_WEB_ORIGIN`、`index.html`（canonical/og/hreflang/JSON-LD）、蓝图导出默认网址统一为 `https://dige-2st.pages.dev` |
 | 版本 | `factory-designer@1.11.1` → `dige@1.12.0`；changelog 新增 `v1.12.0` 小节（8 语言） |
 | 工程 | Biome 配置对齐既有风格 + 修复 lint；新增 CI 工作流（typecheck / lint / 自测 / build） |
@@ -170,9 +170,9 @@ pnpm build                                          # 产物 dist/
 
 ## 十二、上游 issue 处理情况
 
-本仓库用**功能覆盖**而不是逐条回复的方式处理上游 issue：
+本项目用**功能覆盖**而不是逐条回复的方式处理上游 issue：
 
-| 上游 issue | 诉求 | 本仓库现状 |
+| 上游 issue | 诉求 | 当前实现 |
 | --- | --- | --- |
 | [#16](https://github.com/djkcyl/D.I.G.E./issues/16) 希望增加一个主燃料多选功能 | 想让常驻/震荡同时吃多种电池 | **已由「自定义常驻热能池」实现**：多行、每行独立选电池与台数，配合「自定义震荡热能池」可再指定一种电池做震荡 |
 | [#13](https://github.com/djkcyl/D.I.G.E./issues/13) max Fuel/hr 与第三燃料 | 想限制每小时耗料、并加第三种燃料 | **已由「自定义常驻 + 自定义震荡热能池」实现**：主/副/自定义常驻/自定义震荡可同时存在，投料量按个/分钟直接设定 |
