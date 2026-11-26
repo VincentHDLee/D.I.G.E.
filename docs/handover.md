@@ -27,7 +27,9 @@
 
 **远端残留**（可删，需 push 授权）：`fork/feat/add-wuling-mid-battery`（已并入上游主线）、`fork/chore/dev-selftests-2026-08-17` 之外的旧分支。
 
-**工作区当前状态**：v1.12.0 的改动**尚未提交**（电池接入、工作台移除、品牌化、文档、lint 治理）。按计划先内测，测通再分组提交。
+**工作区当前状态**：v1.12.0 的全部改动已按五组提交（tooling / fuels / format / brand / pools），外加一笔 `fix(share)`；工作区干净。
+
+**待推送**：`git push fork main` 在本机被 TLS 阻断（GitHub HTTPS 握手失败，直连与本地代理均不可用），需要在网络恢复后重试；推送后 Cloudflare Pages 才会重建生产站。
 
 ## 二、v1.12.0 落地内容
 
@@ -165,3 +167,12 @@ pnpm build                                          # 产物 dist/
 - [`docs/architecture.md`](architecture.md) — 模块与求解链路
 - [`docs/grid-code.md`](grid-code.md) — DIGE 电网码 B
 - [`docs/docker-apk.md`](docker-apk.md) — 容器与 APK
+
+## 十一、自定义震荡热能池（v1.12.0 新增）
+
+- 侧栏 `OscillationPoolField` 管理 `params.oscPools[]`（`fuelId` / `enabled` / `deviceLimit` / `maxPerMin`）。
+- 求解器构造时把每个池拆成「满速带 + 余量震荡」：`oscBudget.poolPowerForRate()`。满速带每满 1.5 个/分（源矿 7.5）一台，结构为取货口 + 3 分器串联 + 热能池，**不放存货口**；余量按 `2^a·3^b` 吸附成一条震荡支路。
+- 池功率从 `targetPower` 里扣除，`deviceBudget = 48 − 池设备占用` 留给系统震荡；分支枚举与排序都受该预算约束。
+- 结果后处理：把池功率加回 `avgPower`/`powerLog`；纯常驻 + 池方案会按各池周期 LCM（封顶 600s）合成 `powerLog`/`batteryLog`，`poolPowerLog` 与 `powerLog` 同长同索引，图表按同一套重采样绘制。
+- 燃料 BOM 计入池消耗（`poolBandCount` / `poolOscRatePerMin`），「每天节省」按满带满载 + 余量震荡折算，池只贡献消耗不吞掉节省。
+- 分享码尾部可选组：`_hasPools` + 4×(燃料 5 / 投料量 10 / 设备 7 / 启用 2)，以及 `_hasBase` + 4×(燃料 5 / 台数 4)。
