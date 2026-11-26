@@ -32,7 +32,7 @@ VS Code / Cursor：Reopen in Container（`.devcontainer/devcontainer.json`）。
 
 ## Capacitor Android
 
-- App ID：`cn.aunly.dige`
+- App ID：`cn.aunly.dige`（沿用上游历史包名，改名需重新签名/上架，暂不动）
 - App Name：`D.I.G.E.`
 - `webDir`：`dist`
 
@@ -44,7 +44,7 @@ pnpm exec cap sync android
 pnpm exec cap open android  # 可选 Android Studio
 ```
 
-分享链接在 localhost / Capacitor 环境下自动使用官方域名 `https://dige.aunly.cn`。
+分享链接在 localhost / Capacitor 环境下自动使用本仓库站点域名 `https://dige-2st.pages.dev`（`shareParams.CANONICAL_WEB_ORIGIN`）。
 
 ## CI（示例模板）
 
