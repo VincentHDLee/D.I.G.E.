@@ -46,6 +46,7 @@ DIGEF2500WLORM…
 | valleyHigh | VH |
 | wulingLow | WL |
 | wulingMid | WM |
+| wulingHigh | WH |
 | customPrimary | CP |
 | customSecondary | CS |
 | none（副） | NO |
@@ -88,5 +89,5 @@ DIGEF2500WLORM…
 ## 自测
 
 ```bash
-pnpm exec tsx scripts/_selftest_grid_code.mjs
+pnpm exec tsx scripts/selftest-grid-code.mjs
 ```
