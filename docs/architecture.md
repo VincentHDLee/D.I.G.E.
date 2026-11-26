@@ -154,7 +154,7 @@ pnpm exec tsx scripts/selftest-matrix-7665.mjs       # 7665W 九宫格回归
 
 改分享码、燃料顺序、地区规则，必须同时改对应断言，否则等于没测。
 
-## 八、已知坑（沿用上游交接结论）
+## 八、已知坑
 
 1. `SEARCH_MAX_WASTE`（1200）≠ 分享锁值 `maxWaste`（1000），别为「对齐」去改 bit 语义。
 2. `solve()` 返回 `SudokuDecisionMatrix`，不是数组；旁路调用要读 `.solutions` / `.matrix`。

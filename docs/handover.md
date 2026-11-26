@@ -1,35 +1,25 @@
-﻿# v1.12.0 交接与 Git 管理
+﻿# v1.12.0 维护交接
 
 规范版本：v1.12.0（社区维护分支；游戏 1.7 口径）
 
-本文给后续维护者 / Agent：仓库状态、分支与推送规则、产品与代码现状、关键接口、已知坑。
+本文给后续维护者：产品与代码现状、关键接口、设计取舍与已知坑。
 
 ## 一、仓库状态
 
 | 项 | 值 |
 | --- | --- |
-| 工作目录 | `D:\SoftwareDevelopCase\dige` |
-| 当前分支 | `main`（跟踪 `origin/main`，本地 ahead 15） |
-| `origin`（上游，只读） | `https://github.com/djkcyl/D.I.G.E.` |
-| `fork`（本仓库，推送目标） | `https://github.com/VincentHDLee/D.I.G.E.` |
+| 上游仓库 | `https://github.com/djkcyl/D.I.G.E.`（基线 `2b454a5`，游戏 1.5 之前的口径） |
+| 本仓库 | `https://github.com/VincentHDLee/D.I.G.E.` |
 | `package.json` | `dige@1.12.0` |
-| 站点 | `https://dige-2st.pages.dev`（Cloudflare Pages，随 `main` 自动部署） |
+| 演示站 | Cloudflare Pages 静态部署，构建命令 `pnpm build`，产物 `dist` |
 
-**推送规则**：只推 `fork`，绝不推 `origin`（上游）。上游 `origin/main` 顶端仍是 `2b454a5`（2026-04-21），此后无提交、issue 无回复。
+分支：
 
-**本地分支**：
-
-| 分支 | 状态 | 处置 |
-| --- | --- | --- |
-| `main` | 开发主干 | 保留，部署源 |
-| `feature/input-rate-limiter` | 比 main 多 1 个骨干文档提交 | 保留：`docs/upstream-issue-2-loopback.md`（上游 issue #2 回灌/能量泄漏议题的调研与"暂不实现"结论），main 上不复制细节 |
-| `chore/dev-selftests-2026-08-17` | 比 main 多 10 个提交、落后 1 | **保留**：含 M1/M2/M3/OOM/limiter 共 12 个归档自测脚本，main 上没有 |
-
-**远端残留**（可删，需 push 授权）：`fork/feat/add-wuling-mid-battery`（已并入上游主线）、`fork/chore/dev-selftests-2026-08-17` 之外的旧分支。
-
-**工作区当前状态**：v1.12.0 的全部改动已按五组提交（tooling / fuels / format / brand / pools），外加一笔 `fix(share)`；工作区干净。
-
-**待推送**：`git push fork main` 在本机被 TLS 阻断（GitHub HTTPS 握手失败，直连与本地代理均不可用），需要在网络恢复后重试；推送后 Cloudflare Pages 才会重建生产站。
+| 分支 | 用途 |
+| --- | --- |
+| `main` | 开发主干，也是部署源 |
+| `feature/input-rate-limiter` | 资料分支：`docs/upstream-issue-2-loopback.md`（回灌分流 / 能量泄漏议题的调研与「暂不实现」结论） |
+| `chore/dev-selftests-2026-08-17` | 归档分支：M1/M2/M3/OOM/limiter 时期的自测脚本备份 |
 
 ## 二、v1.12.0 落地内容
 
@@ -47,11 +37,11 @@
 | 功率口径 | `MAX_TARGET_POWER` 32767 → **65535**；分享码历史 15 bit 槽保留，超出部分写尾部 `targetPowerWide`（16 bit，可选，老码字节不变） |
 | 震荡池基建 | 新增 `src/utils/oscBudget.ts`：设备容量（3/5/1/1，限速器 1，默认整方案 48）、设备上限→最大分母、传送带每 30 分钟吞 1 个的损耗边界、单支区间（口径 B）、瓦数↔投料速率、档位吸附；配套 `scripts/selftest-osc-budget.mjs` |
 
-## 三、任务书 vs 实际落地（v1.11.1 遗留结论，仍然有效）
+## 三、设计取舍：九宫格从 4×5 收敛到 3×3
 
-原任务书是 **4×5** 电网数独。迭代后产品与代码均为 **3×3 九宫格**。
+最初的方案是 **4×5** 电网数独，迭代后产品与代码均为 **3×3 九宫格**：
 
-| 维度 | 任务书 (4×5) | 实际 (3×3) |
+| 维度 | 早期方案 (4×5) | 现行实现 (3×3) |
 | --- | --- | --- |
 | Y 轴 | 1~4 取货口 | **1~3 路**（`branchCount=0` 映射 row0；`>3` 不入盘） |
 | X 轴 | ≤20 / 20–100 / 100–300 / 300–800 / >800 | **≤100 / 100–500 / >500** |
@@ -140,7 +130,6 @@ pnpm build                                          # 产物 dist/
 | 路径 | 说明 |
 | --- | --- |
 | `android/` 工程 | 可不提交；CI 在无目录时 `cap add android` |
-| `.snow/` | 本地草稿（gitignore） |
 
 ## 八、已知坑
 
@@ -159,14 +148,13 @@ pnpm build                                          # 产物 dist/
 决策盘悬浮窗（双击居中）、常见问题补池相关条目、README 拆分（issue 说明移到本文档第十二节）。
 
 待办：
-1. **推送与线上验证**：本机 GitHub HTTPS 被阻断，需要在可用网络下 `git push fork main`，
-   等 Cloudflare Pages 构建后验证线上页面、燃料图标、分享码往返、图表；
-2. **图表黄色池曲线**：已改为与 `powerData` 同源同重采样，仍需人工确认波形周期；
-3. 移动端决策盘悬浮化、决策盘「重置位置」入口（低优先级）。
+1. **图表黄色池曲线**：已与 `powerData` 同源同重采样，仍需人工确认波形周期；
+2. 移动端决策盘悬浮化、决策盘「重置位置」入口（低优先级）；
+3. 上游 issue #2 的回灌分流路线暂不实现，资料保留在资料分支。
 
 ## 十、相关文档
 
-- [`README.md`](../README.md) — fork 定位、与上游差异、快速开始
+- [`README.md`](../README.md) — 功能概览、与上游差异、快速开始
 - [`docs/architecture.md`](architecture.md) — 模块与求解链路
 - [`docs/grid-code.md`](grid-code.md) — DIGE 电网码 B
 - [`docs/docker-apk.md`](docker-apk.md) — 容器与 APK
