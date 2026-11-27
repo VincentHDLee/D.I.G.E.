@@ -19,7 +19,9 @@
 | 分支 | 用途 |
 | --- | --- |
 | `main` | 开发主干，也是部署源 |
-| `feature/input-rate-limiter` | 资料分支：`docs/upstream-issue-2-loopback.md`（回灌分流 / 能量泄漏议题的调研与「暂不实现」结论） |
+| `feature/input-rate-limiter` | 上游 [PR #17](https://github.com/djkcyl/D.I.G.E./pull/17) 的源分支：由 `main` 过滤掉 `docs/` 后强推，**只带代码、README、CI，不带 `docs/`** |
+
+> `docs/`（含 dev-history）只在本 fork `main` 维护，不再随 PR 发给上游。推后续开发版本到 PR 分支的做法：从 `main` 拉临时分支，执行 `git filter-branch --index-filter "git rm -r -q --cached --ignore-unmatch docs" --prune-empty -- origin/main..<临时分支>`，确认 `git ls-tree -r <临时分支> -- docs` 为空后，`git push --force-with-lease=feature/input-rate-limiter:<旧 sha> fork <临时分支>:feature/input-rate-limiter`。
 | `chore/dev-selftests-2026-08-17` | 归档分支：M1/M2/M3/OOM/limiter 时期的自测脚本备份 |
 
 ## 二、v1.12.0 落地内容
@@ -157,20 +159,14 @@ pnpm build                                          # 产物 dist/
 8. Biome：仓库历史代码是双引号 + 80 列，配置已按此对齐；不要单方面改成单引号，否则全仓 diff 爆炸。
 9. 新脚本要接 CI、开发文档要记日期与四位版本；待议文件不是开工批准。详见[版本规则](dev-history/VERSIONING.md)和[边界待议](dev-history/2026-11-27_池预检调整链边界_待议.md)。
 
-## 九、下一步
+## 九、待办
 
-已完成（v1.12.0 内测）：自定义常驻/震荡热能池、池参数进分享码、设备预算合并、燃料消耗并入、
-决策盘悬浮窗（双击居中）、常见问题补池相关条目、README 拆分（issue 说明移到本文档第十二节）。
+当前轮次 v1.12.0.1 已收口，过程见[任务文档](dev-history/2026-11-27_CI修复与池调整语义固化方案.md)；更早的二开记录见[合订日志](dev-history/2026-11-26_二开早期开发日志合订.md)。
 
-v1.12.0.1 修复轮：CI lint / 旧池断言修复，全部 12 个脚本及 5 个 TypeScript 回归接入 CI；
-调整链投料计划限幅至 1.5/分，固定 1200 → 2000 → 3000 冗余语义与升降档专章已固化。
-本轮实施与验收见[任务文档](dev-history/2026-11-27_CI修复与池调整语义固化方案.md)。
-
-待办：
-1. **图表黄色池曲线**：程序化时间轴 / 电量 / 独立仿真回归已完成，仍缺人工对照游戏内波形；不能把程序自测冒称完整游戏验收；
+1. **图表黄色池曲线**：仍缺与游戏内波形的人工对照；程序自测不能冒称完整游戏验收；
 2. 移动端决策盘悬浮化、决策盘「重置位置」入口（低优先级）；
-3. 上游 issue #2 的回灌分流路线暂不实现，资料保留在资料分支；
-4. 多池联合调参、严格超时与错误诊断边缘列入[待议清单](dev-history/2026-11-27_池预检调整链边界_待议.md)，新任务应先审批再开发。
+3. 多池联合调参、严格超时与错误诊断边缘见[待议清单](dev-history/2026-11-27_池预检调整链边界_待议.md)，开工前先审批。
+4. **周期图表拨档开关**：默认左档「周期显示」按 0.5 + 1 + 0.5 显示 2 个周期；右档「时间显示」对齐游戏本体 10min / 30min / 2h / 12h / 1day / 7days。见[待议](dev-history/2026-11-27_周期图表拨档开关_待议.md)，开工前先审批。
 
 ## 十、相关文档
 

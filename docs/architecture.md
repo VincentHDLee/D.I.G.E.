@@ -174,13 +174,18 @@ App.tsx
  │   ├─ TargetPowerField        目标发电量
  │   ├─ FuelConfigField         主/副燃料 + 混编模式 + 跨区提示
  │   ├─ BasePowerBuilder        常驻分层（手动行 + 自动补齐开关）
+ │   ├─ OscillationPoolField    自定义震荡热能池（oscPools[]）
+ │   ├─ InputSourceField        输入源
  │   ├─ OtherSettingsField      建设地区 / 准入口限速
  │   └─ AdvancedSettingsField   相位差（折叠）
- ├─ solution/SolutionList/
+ ├─ PoolAdjustNotice / PoolAdjustTrace  池预检调整链的结果提示与尝试轨迹
+ ├─ solution/
  │   ├─ SudokuDecisionMatrix/   3×3 九宫格 + 仪表盘 + 移动端弹层
- │   ├─ FuelConsumptionTable    燃料 BOM（分/时/天）
- │   └─ ChartSection            周期图表
- └─ modals/                     公告 / 分享 / 导入 / 存档 / FAQ / 隐私
+ │   ├─ SolutionList/           方案选择 / 摘要 / 存档工具条 / 燃料 BOM / ChartSection
+ │   ├─ SolutionChart.tsx       周期图表（电量 / 功率 / 池功率 / 燃烧状态）
+ │   └─ SolutionDiagram/        流程图、池分带图、蓝图 PNG 导出
+ ├─ overlays/                   加载 / 参数改动 / 分享状态 / 更新提示
+ └─ modals/                     公告 / 分享 / 导入 / 存档 / FAQ / 隐私 / 自定义燃料
 ```
 
 主题走 `useTheme.ts`（`dige_theme`，未手动覆盖时按 6:00–18:00 切白天）。切换主题后 Chart.js 必须强制重绘，只改 CSS class 不够。
