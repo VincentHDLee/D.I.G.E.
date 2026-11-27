@@ -1,7 +1,8 @@
 # 架构与代码说明
 
 面向接手维护的人：这个工具由哪几块拼起来、求解是怎么算的、哪些东西**不能动**。
-版本基线：v1.11.1（游戏 1.7 口径）。
+应用版本：`dige@1.12.0`（游戏 1.7 口径）｜本轮文档：v1.12.0.1｜记录日期：2026-11-27。
+文档版本与应用包版本分开管理，见 [开发文档版本规则](dev-history/VERSIONING.md)。
 
 ## 一、整体数据流
 
@@ -9,26 +10,29 @@
 CalcParams（侧栏 / 分享码 / 存档）
   ↓  App.runCalculation
   ↓  Web Worker: factoryDesigner.worker.ts
-FactoryDesigner.solve()
-  ├─ Track A：autoPlanBasePools = true   （常驻自动补齐）
-  ├─ Track B：autoPlanBasePools = false  （纯震荡 / 手动常驻）
-  ├─ 两条轨道合并 → _buildOutputSignature 去重
-  └─ buildSudokuDecisionMatrix() → 3×3 格 + defaultSelection
+solveWithPoolAdjustChain()（初次与预检剔光后的有限重试）
+  ↓  FactoryDesigner.solveCandidates()
+  │    ├─ Track A：autoPlanBasePools = true   （常驻自动补齐）
+  │    ├─ Track B：autoPlanBasePools = false  （纯震荡 / 手动常驻）
+  │    └─ 两条轨道合并 → _buildOutputSignature 去重
+  ↓  filterByPoolBattery()：完整候选上做池电池预检
+  ↓  buildSudokuDecisionMatrix() → 3×3 格 + defaultSelection
   ↓  { solutions, matrix, defaultSelection }
 SolutionList / SolutionChart / SolutionDiagram（蓝图 PNG 导出）
 ```
 
 参数来源有三条，优先级从高到低：URL / 电网码导入 → 本地存档 → `DEFAULT_PARAMS`。
+直接调用 `FactoryDesigner.solve()` 只走核心双轨求解和建盘，不走 worker 的池预检调整链。具体边界见 [自定义池预检调整链](pool-adjust-chain.md)。
 
 ## 二、求解内核（`src/utils/FactoryDesigner.ts`）
 
-**输入被强制归一化。** 构造函数忽略外部传来的 `maxWaste` / `minBatteryPercent` / `maxBranches`，固定用内部宽窗：
+**输入被归一化。** `minBatteryPercent = MIN_BATTERY_CUTOFF = 5`，分支枚举参数 `PARAM_LIMITS.MAX_BRANCHES = 4`。`maxWaste` 采用以下规则，不再一概忽略外部值：
 
-- `SEARCH_MAX_WASTE = 1200`（`src/types/matrix.ts`）
-- `MIN_BATTERY_CUTOFF = 5`
-- `PARAM_LIMITS.MAX_BRANCHES = 4`
+- `SEARCH_MAX_WASTE = 1200`（`src/types/matrix.ts`），是默认搜索基准；
+- 只有外部 `params.maxWaste` 为有限数值且**大于 1200** 时才采用它，其他情况继续用 1200；
+- 显式的大窗口也参与常驻台数枚举 / 震荡剪枝和仿真后接收；无池纯常驻 hard-top、`poolOverSupply` 另有明确例外。
 
-UI 和分享码里的 1000 / 5 / 4 只是历史槽位，不参与求解。
+分享码里的 1000 / 5 / 4 是历史槽位。1000 实际仍映射为 1200；求解器不会用它缩窄搜索。池预检剔光后的绝对放宽档在 `poolAdjustChain.ts` 中固定为 [2000, 3000]，见下文三之三。
 
 **常驻层（base）** 由 `calculateBasePower()` 产出：
 
@@ -130,6 +134,24 @@ UI 和分享码里的 1000 / 5 / 4 只是历史槽位，不参与求解。
 
 老码不带这些位，解码时缺失即走默认。
 
+## 三之三、池预检后的有限调整链
+
+只有初次原始候选非空、但 `filterByPoolBattery()` 把完整候选全部剔除时，worker 才进入调整链。每轮仍要执行求解、预检、建盘，首个有解即停。
+
+```text
+base = max(1200, params.maxWaste)
+投料按原值尝试 [2000, 3000] 绝对冗余档
+  → 恢复 base，首个活动池每次降 0.1/分，直到 0
+    → 恢复 base，首个活动池每次升 0.1/分，直到合法满速上限
+```
+
+- 只在 `base < tier` 时尝试对应冗余档，不把放宽档和改变投料做笛卡尔积；不保证跨所有档位的全局最优。
+- 只调第一个活动池。原始候选为空、预检未剔光或预检因异常 fail-open 时不会进入。
+- 投料归一化到整数十分位并沿用 1.5/分实际上限，计划最多 17 步（另加 initial），避免异常大输入生成长数组或重复尝试同一有效配置。
+- 降档 / 冗余放宽可套用参数，只标脏，不自动求解；升档仅提示成立条件。分享仍锁 `maxWaste = 1000`，本地 profile 透传保存。
+
+完整触发条件、预检公式、CI 与历史接口边界见 [池预检调整链语义](pool-adjust-chain.md)。
+
 ---
 
 ## 四、分享与存档
@@ -172,12 +194,19 @@ App.tsx
 ## 七、测试
 
 ```bash
-pnpm exec tsx scripts/selftest-grid-code.mjs        # 电网码往返 + 燃料下标锚定
-pnpm exec tsx scripts/selftest-region-limiter.mjs   # 地区规则矩阵
-pnpm exec tsx scripts/selftest-matrix-7665.mjs       # 7665W 九宫格回归
+pnpm run i18n translate                                    # 8 语言、314 keys 同步
+pnpm run typecheck && pnpm run lint
+pnpm exec tsx scripts/selftest-matrix-7665.mjs             # 九宫格硬顶回归
+pnpm exec tsx scripts/selftest-stage-matrix.mjs            # 9 组阶段 + 独立电池仿真
+pnpm exec tsx scripts/selftest-gate-burst.mjs              # 准入口与池脉冲正反场景
+pnpm exec tsx scripts/selftest-pool-adjust-chain.mjs       # 调整链与限幅 / 真实窗口
+pnpm exec tsx --test src/utils/poolFeedSplit.test.ts src/utils/poolAdjustChain.test.ts src/utils/poolChartSegments.test.ts src/utils/poolPulseRegression.test.ts src/utils/poolOverSupplyRegression.test.ts
+pnpm build
 ```
 
-改分享码、燃料顺序、地区规则，必须同时改对应断言，否则等于没测。
+全部 12 个 `scripts/selftest-*.mjs` 以及上述 5 个 `.test.ts` 均已接入 `.github/workflows/ci.yml`。改分享码、燃料顺序、地区规则、池行为或调整链，必须同步相应断言并将新自测挂入 CI，不能只写文件不执行。
+
+开发文档的日期、四位版本与验收登记见 [版本规则](dev-history/VERSIONING.md)；调整链语义见[专章](pool-adjust-chain.md)。
 
 ## 八、已知坑
 

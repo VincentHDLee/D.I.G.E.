@@ -1,6 +1,7 @@
-﻿# v1.12.0 维护交接
+# v1.12.0 维护交接
 
-规范版本：v1.12.0（社区维护分支；游戏 1.7 口径）
+应用规范版本：v1.12.0（社区维护分支；游戏 1.7 口径）
+本轮开发文档：v1.12.0.1｜日期：2026-11-27｜[版本规则](dev-history/VERSIONING.md)（不自动改包版本）
 
 本文给后续维护者：产品与代码现状、关键接口、设计取舍与已知坑。
 
@@ -52,18 +53,20 @@
 | 移动端 | Bottom Sheet | 居中 `DecisionMatrixModal` |
 | 侧栏 | 去掉三大约束 | `ConstraintsField.tsx` 已删；高级区只留相位差 |
 
-分享码仍锁历史槽位：`maxWaste=1000`、`minBatteryPercent=5`、`maxBranches=4`。求解器**忽略**这些 UI/分享值，改用内部宽窗。
+分享码仍锁历史槽位：`maxWaste=1000`、`minBatteryPercent=5`、`maxBranches=4`。求解器使用内部 5% 电量底线与 4 路枚举；`maxWaste` 默认以 1200 为基准，**有限且大于 1200 的外部值会实际生效**，见[池预检调整链语义](pool-adjust-chain.md)。
 
 ## 四、核心数据流
 
 ```text
 Sidebar 精简参数
   → App.runCalculation → factoryDesigner.worker
-    → FactoryDesigner.solve()
+    → solveWithPoolAdjustChain（初次 + 预检剔光后的有限重试）
+      → FactoryDesigner.solveCandidates()
          Track A: autoPlanBasePools=true
          Track B: autoPlanBasePools=false
          merge by _buildOutputSignature
-         → buildSudokuDecisionMatrix()
+      → filterByPoolBattery（完整候选）
+      → buildSudokuDecisionMatrix()
     → { solutions, matrix, defaultSelection }
   → SolutionList
        PC: 左 3×3 + 右 Dashboard；滚过 sentinel 后 38px StickyHud + Popover
@@ -76,8 +79,9 @@ Sidebar 精简参数
 
 `src/utils/FactoryDesigner.ts`
 
-- 构造时忽略外部紧窗：`minBatteryPercent = MIN_BATTERY_CUTOFF(5)`、`maxWaste = SEARCH_MAX_WASTE(1200)`、`maxBranches = 4`。
-- `solve()`：先 `autoPlanBasePools=true` 再 `false`，签名去重后 `buildSudokuDecisionMatrix`。
+- 电量底线固定 `MIN_BATTERY_CUTOFF(5)`，内部枚举 4 路。`maxWaste` 默认 = 1200，只接受有限且 >1200 的显式外部值；不是继续忽略更大的冗余上限参数。
+- `solveCandidates()`：先 `autoPlanBasePools=true` 再 `false`，合并签名去重；`solve()` 再建盘，不自行跑 worker 的预检调整链。
+- `solveWithPoolAdjustChain`：仅预检剔光时按固定 `[2000,3000]` → 降投料 → 升投料重试；首个有解即停。输入投料和计划档位统一 ≤1.5/分，计划至多 17 步（另加 initial）。详见[专章](pool-adjust-chain.md)。
 - `_getDirectBaseConfigs`：覆盖硬顶（covering hard-top）即使浪费 > 1200 也发出，供右上角纯常驻格。
 - `calculateBasePower()`：核心 200W + 手动常驻行 + 自动补齐（`floor(剩余/主燃料功率)`）。
 
@@ -95,7 +99,7 @@ Sidebar 精简参数
 
 ### 常驻层
 
-- `manualBaseLines`（`{ id, fuelId, count }`）当前**不进分享码、不进存档**，只在内存里；侧栏 `BasePowerBuilder` 编辑。
+- `manualBaseLines`（`{ id, fuelId, count }`）由侧栏 `BasePowerBuilder` 编辑；分享尾部 `_hasBase + baseN Fuel/Count` 已覆盖，老码缺失时走默认；profile 参数透传保存。
 - `autoPlanBasePools`：`true` 自动补齐、`false` 不补、`undefined` 走旧 floor 语义。
 
 ### 主题
@@ -105,12 +109,13 @@ Sidebar 精简参数
 ## 六、测试与检查
 
 ```bash
-pnpm run i18n translate                             # 8 语言同步（270 keys）
-pnpm run typecheck                                  # 0 错
-pnpm run lint                                       # Biome（v1.12.0 起应为 0 错）
-pnpm exec tsx scripts/selftest-grid-code.mjs       # 电网码往返 + 燃料下标锚定
-pnpm exec tsx scripts/selftest-region-limiter.mjs  # 地区 × 燃料限速矩阵
+pnpm run i18n translate                             # 8 语言同步（314 keys）
+pnpm run typecheck                                  # 两套 tsconfig 均 0 错
+pnpm run lint                                       # Biome 0 错
 pnpm exec tsx scripts/selftest-matrix-7665.mjs      # 7665W 九宫格回归
+pnpm exec tsx scripts/selftest-gate-burst.mjs       # 准入口格位 + 池脉冲正反场景
+pnpm exec tsx scripts/selftest-pool-adjust-chain.mjs # 调整链、真实窗口与投料边界
+pnpm exec tsx --test src/utils/poolFeedSplit.test.ts src/utils/poolAdjustChain.test.ts src/utils/poolChartSegments.test.ts src/utils/poolPulseRegression.test.ts src/utils/poolOverSupplyRegression.test.ts
 pnpm build                                          # 产物 dist/
 ```
 
@@ -118,7 +123,7 @@ pnpm build                                          # 产物 dist/
 
 ## 七、自测脚本与不入库项
 
-自测统一放在 `scripts/selftest-*.mjs`（v1.12.0 起废掉 `_` 前缀约定，全部入库并由 CI 执行）：
+自测统一放在 `scripts/selftest-*.mjs`（v1.12.0 起废掉 `_` 前缀约定）。**现有 12 个自测均入库并由 CI 执行**；新增自测不能只落文件不接 CI：
 
 | 脚本 | 覆盖 |
 | --- | --- |
@@ -126,6 +131,15 @@ pnpm build                                          # 产物 dist/
 | `selftest-region-limiter.mjs` | 地区 × 燃料限速矩阵 |
 | `selftest-i18n-grid-keys.mjs` | 电网码/公告 i18n key 完整性 |
 | `selftest-matrix-7665.mjs` | 7665W 九宫格回归（默认格 / 右上硬顶 / 右下废解） |
+| `selftest-osc-budget.mjs` / `selftest-osc-scenarios.mjs` | 设备预算、档位吸附与震荡池场景 |
+| `selftest-stage-matrix.mjs` | 9 组阶段场景 + 独立电池仿真 |
+| `selftest-gate-burst.mjs` | 准入口成串放行、池脉冲正反场景 |
+| `selftest-power-integration.mjs` | 秒级燃烧段与功率积分 |
+| `selftest-pool-precheck.mjs` | 池预检、富余阈值与诊断 |
+| `selftest-solve-timeout.mjs` | worker 超时、取消与 App 接线 |
+| `selftest-pool-adjust-chain.mjs` | 固定冗余档、升降档、真实窗口与投料边界 |
+
+`src/utils/` 的 `poolFeedSplit` / `poolAdjustChain` / `poolChartSegments` / `poolPulseRegression` / `poolOverSupplyRegression` 五个 `.test.ts` 也已用 `tsx --test` 接入 CI。
 
 | 路径 | 说明 |
 | --- | --- |
@@ -133,7 +147,7 @@ pnpm build                                          # 产物 dist/
 
 ## 八、已知坑
 
-1. **`SEARCH_MAX_WASTE`（1200）≠ 分享锁值 `maxWaste`（1000）**。改窗只动 `src/types/matrix.ts`。
+1. **`SEARCH_MAX_WASTE`（1200）≠ 分享锁值 `maxWaste`（1000）**。默认基准在 `src/types/matrix.ts`；显式放宽由 FactoryDesigner 采用，固定重试档在 `poolAdjustChain.ts`。不要把三者混成分享协议变更。
 2. **`solve()` 返回 `SudokuDecisionMatrix`**，不是数组；旁路脚本必须读 `.solutions` / `.matrix`。
 3. 双轨是串行两次 `runOscillationPipelines()`；不要在 4 路全枚举上再叠无剪枝搜索（OOM）。
 4. 矩阵格与 `solutions[]` 靠**对象引用**对应；Worker 结构化克隆后不能再次深拷贝。
@@ -141,16 +155,22 @@ pnpm build                                          # 产物 dist/
 6. `html.light` / Chart：切主题必须走 `useTheme` 总线并强制 `update`。
 7. 高功率燃料（高容武陵 6400W）在「目标落在两台之间」时只能出硬顶解（例：7300W → 2×6400+200 = 13000W），属物理限制，不是 bug。
 8. Biome：仓库历史代码是双引号 + 80 列，配置已按此对齐；不要单方面改成单引号，否则全仓 diff 爆炸。
+9. 新脚本要接 CI、开发文档要记日期与四位版本；待议文件不是开工批准。详见[版本规则](dev-history/VERSIONING.md)和[边界待议](dev-history/2026-11-27_池预检调整链边界_待议.md)。
 
 ## 九、下一步
 
 已完成（v1.12.0 内测）：自定义常驻/震荡热能池、池参数进分享码、设备预算合并、燃料消耗并入、
 决策盘悬浮窗（双击居中）、常见问题补池相关条目、README 拆分（issue 说明移到本文档第十二节）。
 
+v1.12.0.1 修复轮：CI lint / 旧池断言修复，全部 12 个脚本及 5 个 TypeScript 回归接入 CI；
+调整链投料计划限幅至 1.5/分，固定 1200 → 2000 → 3000 冗余语义与升降档专章已固化。
+本轮实施与验收见[任务文档](dev-history/2026-11-27_CI修复与池调整语义固化方案.md)。
+
 待办：
-1. **图表黄色池曲线**：已与 `powerData` 同源同重采样，仍需人工确认波形周期；
+1. **图表黄色池曲线**：程序化时间轴 / 电量 / 独立仿真回归已完成，仍缺人工对照游戏内波形；不能把程序自测冒称完整游戏验收；
 2. 移动端决策盘悬浮化、决策盘「重置位置」入口（低优先级）；
-3. 上游 issue #2 的回灌分流路线暂不实现，资料保留在资料分支。
+3. 上游 issue #2 的回灌分流路线暂不实现，资料保留在资料分支；
+4. 多池联合调参、严格超时与错误诊断边缘列入[待议清单](dev-history/2026-11-27_池预检调整链边界_待议.md)，新任务应先审批再开发。
 
 ## 十、相关文档
 
@@ -158,6 +178,9 @@ pnpm build                                          # 产物 dist/
 - [`docs/architecture.md`](architecture.md) — 模块与求解链路
 - [`docs/grid-code.md`](grid-code.md) — DIGE 电网码 B
 - [`docs/docker-apk.md`](docker-apk.md) — 容器与 APK
+- [`docs/pool-adjust-chain.md`](pool-adjust-chain.md) — 固定冗余档、升降档、预检与 UI 语义
+- [`dev-history/VERSIONING.md`](dev-history/VERSIONING.md) — 开发文档日期、四位版本及升级规则
+- [`dev-history/README.md`](dev-history/README.md) — 任务书、验收报告、待议清单的日期版本索引
 
 ## 十一、自定义震荡热能池（v1.12.0 新增）
 
