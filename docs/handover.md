@@ -19,10 +19,10 @@
 | 分支 | 用途 |
 | --- | --- |
 | `main` | 开发主干，也是部署源 |
-| `feature/input-rate-limiter` | 上游 [PR #17](https://github.com/djkcyl/D.I.G.E./pull/17) 的源分支：由 `main` 过滤掉 `docs/` 后强推，**只带代码、README、CI，不带 `docs/`** |
+| `upstream-pr` | 上游 [PR #18](https://github.com/djkcyl/D.I.G.E./pull/18) 的源分支：由 `main` 过滤掉 `docs/` 机械生成，**只带代码、README、CI，不带 `docs/`，禁止手工提交** |
+| `archive/*`（tag） | 历史分支归档：`feature-input-rate-limiter`（原 PR #17，已关闭）、`chore-dev-selftests-2026-08-17`（M1/M2/M3/OOM/limiter 时期自测脚本）等 |
 
-> `docs/`（含 dev-history）只在本 fork `main` 维护，不再随 PR 发给上游。推后续开发版本到 PR 分支的做法：从 `main` 拉临时分支，执行 `git filter-branch --index-filter "git rm -r -q --cached --ignore-unmatch docs" --prune-empty -- origin/main..<临时分支>`，确认 `git ls-tree -r <临时分支> -- docs` 为空后，`git push --force-with-lease=feature/input-rate-limiter:<旧 sha> fork <临时分支>:feature/input-rate-limiter`。
-| `chore/dev-selftests-2026-08-17` | 归档分支：M1/M2/M3/OOM/limiter 时期的自测脚本备份 |
+> `docs/`（含 dev-history）只在本 fork `main` 维护，不随 PR 发给上游。从方案、开发、推 `main` 到过滤生成 `upstream-pr` 与提 PR 的完整步骤见[开发与上游同步流程](dev-workflow.md)。
 
 ## 二、v1.12.0 落地内容
 
@@ -175,6 +175,7 @@ pnpm build                                          # 产物 dist/
 - [`docs/grid-code.md`](grid-code.md) — DIGE 电网码 B
 - [`docs/docker-apk.md`](docker-apk.md) — 容器与 APK
 - [`docs/pool-adjust-chain.md`](pool-adjust-chain.md) — 固定冗余档、升降档、预检与 UI 语义
+- [`docs/dev-workflow.md`](dev-workflow.md) — fork `main` 开发 → 过滤 `docs/` 生成 `upstream-pr` → 上游 PR 的流程
 - [`dev-history/VERSIONING.md`](dev-history/VERSIONING.md) — 开发文档日期、四位版本及升级规则
 - [`dev-history/README.md`](dev-history/README.md) — 任务书、验收报告、待议清单的日期版本索引
 
